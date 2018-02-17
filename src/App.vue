@@ -1,82 +1,100 @@
 <template>
   <div id="app">
-    <p> Stock Return: {{ stockReturn }}</p>
-    <p> Stock Risk: {{ stockRisk }}</p>
-    <p> Stock Return %: {{ stockReturnPercent }}</p>
-    <p> Stock Risk %: {{ stockRiskPercent }}</p>
-    <p> Fast Parrot Index: {{ stockFastParrotIndex }}</p>
-
+    {{ stocksInfo }}
+    <stock-item v-for="info in stocksInfo" :key="info.ticker" :stockInfo="info"/>
   </div>
 </template>
 
 <script>/* eslint-disable */
 import axios from 'axios'
-
-const MARKETOPENEDDAYS = 250
+import StockItem from './components/StockItem'
+import {TICKERS, MARKET_OPENED_DAYS, TICKER_QUERY} from "./constants";
 
 export default {
   name: 'App',
+  components: {
+    StockItem
+  },
   created: function () {
     this.getData()
   },
   data() {
     return {
-      stockRisk: 0,
-      stockReturn: 0,
-      stockFastParrotIndex: 0,
+      stocksInfo: [],
     }
   },
   methods: {
+    // Consume datos para cada ticker, realiza calculos y lo almacena en stocksInfo.
     getData() {
-      axios.get('https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=HP&outputsize=full&apikey=H5HKBN46EVDYZBZ2')
-        .then((res) => {
+      TICKERS.map(ticker => {
+        axios.get(TICKER_QUERY(ticker))
+          .then(res => {
 
-          const stockInfo = res.data
+            console.log("[App.vue > getData] Recibidos datos de " + ticker);
+            const stockData = res.data;
 
-          const closeprices = Object.keys(stockInfo['Time Series (Daily)'])
-            .map((dayData) => {
-              return parseFloat(stockInfo['Time Series (Daily)'][dayData]['4. close'])
-            }).reverse()
+            // Calculo de los precios de cierre
+            const keys = Object.keys(stockData['Time Series (Daily)']).reverse();
+            const closeprices = keys.map((dayData) => {
+              return parseFloat(stockData['Time Series (Daily)'][dayData]['4. close'])
+            })
+            console.log("[App.vue > getData] Datos de cierre de " + ticker + ":" + closeprices.slice(0, 3) + "...");
 
-          // Stock Simple Return
-          const priceVariaton = closeprices.map((value, index) => {
-            return (index == 0) ? null : (value / closeprices[index - 1]) - 1
+            // Variacion diaria entre precios
+            const priceDailyVariation = closeprices.map((value, index) => {
+              return (index === 0) ? null : (value / closeprices[index - 1]) - 1
+            })
+            // El calculo depende de dos componenetes consecutivas. El primer valor no se
+            // puede calcular. Se elimina
+            priceDailyVariation.splice(0, 1)
+            console.log("[App.vue > getData] Datos de variacion de precio de " + ticker + ":" + priceDailyVariation.slice(0, 3) + "...");
+
+
+            // Stock return: media de los incrementos diarios extendida a un año
+            const stockReturn = this.average(priceDailyVariation) * MARKET_OPENED_DAYS;
+            console.log("[App.vue > getData] Return " + ticker + ":" + stockReturn);
+
+
+            // Stock risk: desviacion tipica de los incrementos diarios extendida a un año
+            const stockRisk = Math.sqrt(this.variance(priceDailyVariation) * MARKET_OPENED_DAYS);
+            console.log("[App.vue > getData] Risk " + ticker + ":" + stockRisk);
+
+            // Stock Fast Parrot Index
+            const stockFastParrotIndex = parseInt((stockReturn / stockRisk) * 100)
+            console.log("[App.vue > getData] FP Index " + ticker + ":" + stockFastParrotIndex);
+
+
+            this.stocksInfo.push({
+              ticker: ticker,
+              date: {
+                begin: keys[0],
+                end: keys[keys.length - 1]
+              },
+              closePrices: closeprices,
+              stockReturn: stockReturn,
+              stockRisk: stockRisk,
+              stockFastParrotIndex: stockFastParrotIndex
+            })
           })
-          priceVariaton.splice(0, 1)
-
-          const average = priceVariaton.reduce((previousValue, currentValue) => {
-            return previousValue + currentValue
-          }) / priceVariaton.length
-
-          console.log("Average priceVariation: " + average)
-
-          this.stockReturn = average * MARKETOPENEDDAYS
-
-          // Stock Risk
-          this.stockRisk = Math.pow(priceVariaton.reduce((previousValue, currentValue) => {
-            return previousValue + Math.pow(currentValue - average, 2)
-          }) / (priceVariaton.length - 1) * MARKETOPENEDDAYS, 0.5)
-
-          // FastParrot Index
-          this.stockFastParrotIndex =parseInt((this.stockReturn / this.stockRisk) * 1000)
-
-        })
-        .catch((e) => {
-        })
+          .catch(e => {
+          })
+      })
     },
 
-    toPercent(n) {
-      return `${(n * 100).toFixed(2)}%`
-    }
-  },
-  computed: {
-    stockReturnPercent() {
-      return this.toPercent(this.stockReturn)
+    // Media aritmetica de un array
+    average(array) {
+      return array.reduce((previous, current) => {
+        return previous + current
+      }) / array.length
     },
-    stockRiskPercent() {
-      return this.toPercent(this.stockRisk)
-    }
 
+    // Desviacion tipica de un array
+    variance(array) {
+      const av = this.average(array)
+      return array.reduce((previous, current) => {
+        return previous + Math.pow(current - av, 2)
+      }) / (array.length - 1)
+    },
   },
 }
 </script>
