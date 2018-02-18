@@ -1,7 +1,8 @@
 export const TICKERS = [
   'PG',
   'TGT',
-  'BRG'
+  'BRG',
+  'KO'
 ]
 export const MARKET_OPENED_DAYS = 250
 export const TICKER_QUERY = ticker => {

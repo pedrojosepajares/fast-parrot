@@ -1,6 +1,5 @@
 <template>
   <div id="app">
-    {{ stocksInfo }}
     <stock-item v-for="info in stocksInfo" :key="info.ticker" :stockInfo="info"/>
   </div>
 </template>
@@ -63,7 +62,7 @@ export default {
             const stockFastParrotIndex = parseInt((stockReturn / stockRisk) * 100)
             console.log("[App.vue > getData] FP Index " + ticker + ":" + stockFastParrotIndex);
 
-
+            // Push de los datos calculados al array stocksInfo
             this.stocksInfo.push({
               ticker: ticker,
               date: {
@@ -75,6 +74,14 @@ export default {
               stockRisk: stockRisk,
               stockFastParrotIndex: stockFastParrotIndex
             })
+
+            // Si stocksInfo tiene valores para cada ticker se ordena por FP index
+            if (this.stocksInfo.length == TICKERS.length) {
+              console.log("[App.vue > getData] Ordenando stocksInfo")
+              this.stocksInfo.sort((a, b) => {
+                return a.stockFastParrotIndex - b.stockFastParrotIndex
+              })
+            }
           })
           .catch(e => {
           })
@@ -100,12 +107,4 @@ export default {
 </script>
 
 <style>
-  #app {
-    font-family: 'Avenir', Helvetica, Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-align: center;
-    color: #2c3e50;
-    margin-top: 60px;
-  }
 </style>
